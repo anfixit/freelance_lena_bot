@@ -23,17 +23,14 @@ jobs:
           port: 22
           script: |
             # Переходим в директорию проекта или создаем её
-            cd /opt || exit 1
+            cd /opt
 
-            # Клонируем или обновляем репозиторий
-            if [ -d "freelance_lena_bot" ]; then
-              cd freelance_lena_bot
-              git reset --hard HEAD
-              git pull origin main
-            else
-              git clone https://github.com/anfixit/freelance_lena_bot.git
-              cd freelance_lena_bot
-            fi
+            # Удаляем старую папку если есть
+            rm -rf freelance_lena_bot
+
+            # Клонируем репозиторий
+            git clone https://github.com/anfixit/freelance_lena_bot.git
+            cd freelance_lena_bot
 
             # Проверяем что мы в правильной директории
             pwd
