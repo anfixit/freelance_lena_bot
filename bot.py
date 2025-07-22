@@ -1,17 +1,23 @@
 import asyncio
-import logging
 import json
-from typing import Dict, Any
+import logging
 from pathlib import Path
 
 from aiogram import Bot, Dispatcher, F, Router
-from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
-from aiogram.filters import Command, StateFilter
+from aiogram.client.default import DefaultBotProperties
+from aiogram.enums import ParseMode
+from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.enums import ParseMode
-from aiogram.client.default import DefaultBotProperties
+from aiogram.types import (
+    CallbackQuery,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    KeyboardButton,
+    Message,
+    ReplyKeyboardMarkup,
+)
 
 from config import TOKEN
 
@@ -228,7 +234,7 @@ async def show_about(message: Message):
     text += "• Помогает найти площадки для поиска работы\n"
     text += "• Показывает уровни заработка\n"
     text += "• Дает практические советы для старта\n\n"
-    text += "💬 <b>Поддержка:</b> @freelance_lena_support\n"
+    text += "💬 <b>Поддержка:</b> @Anfikus\n"
     text += "📈 <b>Версия:</b> 1.0"
 
     await message.answer(text)
