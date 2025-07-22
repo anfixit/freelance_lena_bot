@@ -3,38 +3,31 @@ name: Deploy Freelance Bot
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
+      - name: Checkout repo
         uses: actions/checkout@v3
 
-      - name: Deploy to server
-        uses: appleboy/ssh-action@v0.1.5
+      - name: Copy files via scp
+        uses: appleboy/scp-action@v0.1.4
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_KEY }}
-          port: 22
+          source: "bot.py,config.py,requirements.txt,data/professions.json,.env,freelance-bot.service,nginx-freelance-bot.conf"
+          target: "/opt/freelance_lena_bot"
+
+      - name: Executing remote ssh commands to deploy
+        uses: appleboy/ssh-action@v0.1.7
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
           script: |
-            # Переходим в директорию проекта или создаем её
-            cd /opt
-
-            # Удаляем старую папку если есть
-            rm -rf freelance_lena_bot
-
-            # Клонируем репозиторий
-            git clone https://github.com/anfixit/freelance_lena_bot.git
-            cd freelance_lena_bot
-
-            # Проверяем что мы в правильной директории
-            pwd
-            ls -la
+            cd /opt/freelance_lena_bot
 
             # Устанавливаем Python 3.11 если нет
             if ! command -v python3.11 &> /dev/null; then
@@ -57,7 +50,10 @@ jobs:
             # Создаем директории
             mkdir -p data logs
 
-            # Копируем systemd сервис если существует
+            # Создаем .env файл с токеном
+            echo "BOT_TOKEN=7889941062:AAF90-F0PY5xQWb-CZBndU7JIVr53ArBj7U" > .env
+
+            # Копируем systemd сервис
             if [ -f "freelance-bot.service" ]; then
               cp freelance-bot.service /etc/systemd/system/
               systemctl daemon-reload
@@ -66,14 +62,14 @@ jobs:
             # Перезапускаем сервис
             systemctl stop freelance-bot || true
             systemctl enable freelance-bot || true
-            systemctl start freelance-bot || true
+            systemctl start freelance-bot
 
             # Настраиваем nginx если файл существует
             if [ -f "nginx-freelance-bot.conf" ] && [ ! -f /etc/nginx/sites-enabled/freelance-bot ]; then
               cp nginx-freelance-bot.conf /etc/nginx/sites-available/freelance-bot
               ln -sf /etc/nginx/sites-available/freelance-bot /etc/nginx/sites-enabled/
-              nginx -t && systemctl reload nginx || echo "Nginx config issue"
+              nginx -t && systemctl reload nginx
             fi
 
             # Проверяем статус
-            systemctl status freelance-bot --no-pager || echo "Service not running yet"
+            systemctl status freelance-bot --no-pager
