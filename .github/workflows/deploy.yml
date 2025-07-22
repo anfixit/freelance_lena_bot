@@ -1,0 +1,74 @@
+name: Deploy Freelance Bot
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Deploy to server
+        uses: appleboy/ssh-action@v0.1.5
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          port: 22
+          script: |
+            # Переходим в директорию проекта или создаем её
+            cd /opt || exit 1
+
+            # Клонируем или обновляем репозиторий
+            if [ -d "freelance_lena_bot" ]; then
+              cd freelance_lena_bot
+              git pull origin main
+            else
+              git clone https://github.com/anfixit/freelance_lena_bot.git
+              cd freelance_lena_bot
+            fi
+
+            # Устанавливаем Python 3.11 если нет
+            if ! command -v python3.11 &> /dev/null; then
+              apt update
+              apt install -y software-properties-common
+              add-apt-repository ppa:deadsnakes/ppa -y
+              apt update
+              apt install -y python3.11 python3.11-venv python3.11-dev
+            fi
+
+            # Создаем виртуальное окружение
+            python3.11 -m venv venv
+            source venv/bin/activate
+
+            # Устанавливаем зависимости
+            pip install --upgrade pip
+            pip install -r requirements.txt
+
+            # Создаем директории
+            mkdir -p data logs
+
+            # Копируем systemd сервис
+            cp freelance-bot.service /etc/systemd/system/
+            systemctl daemon-reload
+
+            # Перезапускаем сервис
+            systemctl stop freelance-bot || true
+            systemctl enable freelance-bot
+            systemctl start freelance-bot
+
+            # Настраиваем nginx если нужно
+            if [ ! -f /etc/nginx/sites-enabled/freelance-bot ]; then
+              cp nginx-freelance-bot.conf /etc/nginx/sites-available/freelance-bot
+              ln -sf /etc/nginx/sites-available/freelance-bot /etc/nginx/sites-enabled/
+              nginx -t && systemctl reload nginx
+            fi
+
+            # Проверяем статус
+            systemctl status freelance-bot --no-pager
