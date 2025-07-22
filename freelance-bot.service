@@ -1,0 +1,15 @@
+[Unit]
+Description=Freelance Lena Bot
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/freelance_lena_bot
+Environment=PATH=/opt/freelance_lena_bot/venv/bin
+ExecStart=/opt/freelance_lena_bot/venv/bin/python bot.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
