@@ -26,7 +26,11 @@ def get_image_path(category: str, image_name: str) -> Path:
         logger.warning(f"Неизвестная категория изображения: {category}")
         return None
 
-    image_path = category_map[category] / f"{image_name}.jpg"
+    # Убираем дублирование .jpg если оно уже есть
+    if not image_name.endswith('.jpg'):
+        image_name = f"{image_name}.jpg"
+
+    image_path = category_map[category] / image_name
 
     if not image_path.exists():
         logger.warning(f"Изображение не найдено: {image_path}")
@@ -52,6 +56,7 @@ def get_direction_image(direction_id: str) -> FSInputFile:
 
     image_name = image_map.get(direction_id)
     if not image_name:
+        logger.warning(f"Не найдено соответствие для направления: {direction_id}")
         return None
 
     path = get_image_path("directions", image_name)
@@ -68,6 +73,7 @@ def get_course_image(course_name: str) -> FSInputFile:
 
     image_name = image_map.get(course_name)
     if not image_name:
+        logger.warning(f"Не найдено соответствие для курса: {course_name}")
         return None
 
     path = get_image_path("courses", image_name)

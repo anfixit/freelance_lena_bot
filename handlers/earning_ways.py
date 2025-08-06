@@ -16,11 +16,3 @@ async def show_earning_ways(message: Message, state: FSMContext):
     text += "Выбери, что тебя интересует:"
 
     await message.answer(text, reply_markup=get_earning_ways_keyboard())
-
-
-@router.callback_query(F.data == "earning_training")
-async def show_earning_training(callback: CallbackQuery):
-    """Показать обучение как способ заработка."""
-    # Импортируем функцию из courses.py
-    from .courses import show_tariffs
-    await show_tariffs(callback)

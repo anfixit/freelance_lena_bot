@@ -1,15 +1,31 @@
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, Message, FSInputFile
 
 from constants import BUTTON_BUY_COURSE, BUTTON_GET_DETAILS, CONSULTATION_URL
 from keyboards import get_direction_detail_keyboard, get_directions_keyboard, get_back_to_direction_keyboard
 from states import UserStates
 from utils.data_loader import get_direction_by_id, load_directions
-from utils.image_handler import get_direction_image
+from utils.image_handler import get_image_path
 
 router = Router()
 DIRECTIONS = load_directions()
+
+
+def truncate_text(text: str, max_length: int = 900) -> str:
+    """Обрезает текст до максимальной длины для caption."""
+    if len(text) <= max_length:
+        return text
+
+    truncated = text[:max_length]
+    last_period = truncated.rfind('.')
+    last_newline = truncated.rfind('\n')
+
+    cut_point = max(last_period, last_newline)
+    if cut_point > max_length - 200:
+        return text[:cut_point + 1] + "\n\n💬 Подробности в консультации"
+    else:
+        return text[:max_length] + "..."
 
 
 @router.message(F.text == "💼 Направления для заработка")
@@ -25,7 +41,7 @@ async def show_directions(message: Message, state: FSMContext):
 
 @router.callback_query(F.data.startswith("dir_"))
 async def show_direction_detail(callback: CallbackQuery, state: FSMContext):
-    """Показать детали направления."""
+    """Показать детали направления с картинкой."""
     dir_id = callback.data.split("_", 1)[1]
     direction = get_direction_by_id(DIRECTIONS, dir_id)
 
@@ -36,6 +52,7 @@ async def show_direction_detail(callback: CallbackQuery, state: FSMContext):
     await state.set_state(UserStates.viewing_direction)
     await state.update_data(current_direction=dir_id)
 
+    # Формируем текст
     text = f"{direction['emoji']} <b>{direction['title']}</b>\n\n"
     text += direction['description']
 
@@ -55,20 +72,33 @@ async def show_direction_detail(callback: CallbackQuery, state: FSMContext):
         text += f"\n\n<b>💰 Доход:</b> {direction['income']}\n"
         text += f"<b>💸 Комиссия:</b> {direction['commission']}"
 
-    # Получаем изображение для направления
-    direction_image = get_direction_image(dir_id)
+    # Обрезаем текст если слишком длинный
+    text = truncate_text(text, 900)
 
-    # Удаляем предыдущее сообщение и отправляем новое с фото
-    await callback.message.delete()
+    try:
+        # Пытаемся отправить с картинкой
+        photo = get_direction_image(dir_id)
 
-    if direction_image:
-        await callback.message.answer_photo(
-            photo=direction_image,
-            caption=text,
-            reply_markup=get_direction_detail_keyboard(dir_id)
-        )
-    else:
-        await callback.message.answer(
+        if photo:
+            await callback.message.answer_photo(
+                photo=photo,
+                caption=text,
+                reply_markup=get_direction_detail_keyboard(dir_id)
+            )
+            # Удаляем предыдущее сообщение
+            try:
+                await callback.message.delete()
+            except:
+                pass
+        else:
+            # Если картинки нет - отправляем обычным текстом
+            await callback.message.edit_text(
+                text,
+                reply_markup=get_direction_detail_keyboard(dir_id)
+            )
+    except Exception as e:
+        # При любой ошибке - отправляем текстом
+        await callback.message.edit_text(
             text,
             reply_markup=get_direction_detail_keyboard(dir_id)
         )
