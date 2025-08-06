@@ -24,11 +24,12 @@ async def show_courses(callback: CallbackQuery):
     for course in direction['courses']:
         text += f"🎓 <b>{course['name']}</b>\n"
         text += f"{course['description']}\n\n"
-        text += f"💰 <b>Средний доход:</b> {course['income']}\n"
-        text += f"💳 <b>Стоимость:</b> {course['price_basic']} без чата помощи\n"
-        text += f"💳 <b>С чатом:</b> {course['price_with_chat']}\n\n"
-        text += f"{COURSE_BENEFITS}\n\n"
+        text += f"💰 <b>Доход:</b> {course['income']}\n"
+        text += f"💳 <b>Цена:</b> {course['price_basic']} / {course['price_with_chat']}\n\n"
         text += "---\n\n"
+
+    # Добавляем общую информацию один раз в конец
+    text += f"ℹ️ {COURSE_BENEFITS}"
 
     await callback.message.edit_text(text, reply_markup=get_back_to_courses_keyboard(dir_id))
     await callback.answer()
