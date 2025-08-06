@@ -3,25 +3,27 @@ name: Deploy Freelance Bot
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Copy files via scp
-        uses: appleboy/scp-action@v0.1.4
+        uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_KEY }}
-          source: "bot.py,config.py,requirements.txt,data/professions.json,.env,freelance-bot.service,nginx-freelance-bot.conf"
+          source: "bot.py,config.py,constants.py,handlers/,keyboards/,states/,utils/,data/,requirements.txt,.env,freelance-bot.service"
           target: "/opt/freelance_lena_bot"
+          strip_components: 0
 
-      - name: Executing remote ssh commands to deploy
-        uses: appleboy/ssh-action@v0.1.7
+      - name: Deploy and restart bot
+        uses: appleboy/ssh-action@v0.1.10
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
@@ -29,8 +31,9 @@ jobs:
           script: |
             cd /opt/freelance_lena_bot
 
-            # Устанавливаем Python 3.11 если нет
+            # Проверяем Python 3.11
             if ! command -v python3.11 &> /dev/null; then
+              echo "Устанавливаем Python 3.11..."
               apt update
               apt install -y software-properties-common
               add-apt-repository ppa:deadsnakes/ppa -y
@@ -38,7 +41,10 @@ jobs:
               apt install -y python3.11 python3.11-venv python3.11-dev python3.11-pip
             fi
 
-            # Создаем виртуальное окружение
+            # Останавливаем бота
+            systemctl stop freelance-bot || true
+
+            # Создаем/обновляем виртуальное окружение
             rm -rf venv
             python3.11 -m venv venv
             source venv/bin/activate
@@ -50,26 +56,50 @@ jobs:
             # Создаем директории
             mkdir -p data logs
 
-            # Создаем .env файл с токеном
-            echo "BOT_TOKEN=7889941062:AAF90-F0PY5xQWb-CZBndU7JIVr53ArBj7U" > .env
-
-            # Копируем systemd сервис
-            if [ -f "freelance-bot.service" ]; then
-              cp freelance-bot.service /etc/systemd/system/
-              systemctl daemon-reload
+            # Проверяем что все секреты переданы
+            echo "🔐 Проверяем секреты..."
+            if [ -z "${{ secrets.BOT_TOKEN }}" ]; then
+              echo "❌ BOT_TOKEN не задан в секретах GitHub!"
+              exit 1
             fi
+            echo "✅ Все секреты переданы корректно"
 
-            # Перезапускаем сервис
-            systemctl stop freelance-bot || true
-            systemctl enable freelance-bot || true
+            # Создаем .env файл из секретов GitHub
+            cat > .env << EOF
+            BOT_TOKEN=${{ secrets.BOT_TOKEN }}
+            DATABASE_URL=${{ secrets.DATABASE_URL || 'sqlite:///bot.db' }}
+            DEBUG=${{ secrets.DEBUG || 'False' }}
+            ADMIN_IDS=${{ secrets.ADMIN_IDS || '' }}
+            WEBHOOK_HOST=${{ secrets.WEBHOOK_HOST || '' }}
+            WEBHOOK_PORT=${{ secrets.WEBHOOK_PORT || '8001' }}
+            EOF
+
+            echo "✅ .env файл создан"
+
+            # Обновляем systemd сервис
+            cp freelance-bot.service /etc/systemd/system/
+            systemctl daemon-reload
+
+            # Устанавливаем права доступа
+            chown -R root:root /opt/freelance_lena_bot
+            chmod +x bot.py
+
+            # Запускаем бота
+            systemctl enable freelance-bot
             systemctl start freelance-bot
 
-            # Настраиваем nginx если файл существует
-            if [ -f "nginx-freelance-bot.conf" ] && [ ! -f /etc/nginx/sites-enabled/freelance-bot ]; then
-              cp nginx-freelance-bot.conf /etc/nginx/sites-available/freelance-bot
-              ln -sf /etc/nginx/sites-available/freelance-bot /etc/nginx/sites-enabled/
-              nginx -t && systemctl reload nginx
-            fi
-
             # Проверяем статус
+            sleep 5
             systemctl status freelance-bot --no-pager
+
+            # Проверяем логи
+            journalctl -u freelance-bot --since "1 minute ago" --no-pager
+
+      - name: Notify deployment status
+        if: always()
+        run: |
+          if [ ${{ job.status }} == 'success' ]; then
+            echo "✅ Деплой успешен!"
+          else
+            echo "❌ Ошибка деплоя!"
+          fi
