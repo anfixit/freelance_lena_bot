@@ -14,9 +14,16 @@ from handlers import common, courses, directions, earning_ways, start
 
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler('logs/bot.log', encoding='utf-8')
+    ]
 )
 logger = logging.getLogger(__name__)
+
+# Включаем WARNING логи для всех модулей
+logging.getLogger('utils.image_handler').setLevel(logging.INFO)
 
 
 class AntiSpamMiddleware(BaseMiddleware):

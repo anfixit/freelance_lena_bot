@@ -1,3 +1,4 @@
+import logging
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message, FSInputFile
@@ -10,6 +11,7 @@ from utils.image_handler import get_image_path
 
 router = Router()
 DIRECTIONS = load_directions()
+logger = logging.getLogger(__name__)
 
 
 def truncate_text(text: str, max_length: int = 900) -> str:
@@ -77,9 +79,11 @@ async def show_direction_detail(callback: CallbackQuery, state: FSMContext):
 
     try:
         # Пытаемся отправить с картинкой
+        logger.info(f"Попытка показать направление: {dir_id}")
         photo = get_direction_image(dir_id)
 
         if photo:
+            logger.info(f"Отправляем направление {dir_id} с картинкой")
             await callback.message.answer_photo(
                 photo=photo,
                 caption=text,
@@ -92,12 +96,14 @@ async def show_direction_detail(callback: CallbackQuery, state: FSMContext):
                 pass
         else:
             # Если картинки нет - отправляем обычным текстом
+            logger.info(f"Отправляем направление {dir_id} БЕЗ картинки")
             await callback.message.edit_text(
                 text,
                 reply_markup=get_direction_detail_keyboard(dir_id)
             )
     except Exception as e:
         # При любой ошибке - отправляем текстом
+        logger.error(f"Ошибка при отправке направления {dir_id}: {e}")
         await callback.message.edit_text(
             text,
             reply_markup=get_direction_detail_keyboard(dir_id)
