@@ -6,6 +6,7 @@ from constants import BUTTON_BUY_COURSE, BUTTON_GET_DETAILS, CONSULTATION_URL
 from keyboards import get_direction_detail_keyboard, get_directions_keyboard, get_back_to_direction_keyboard
 from states import UserStates
 from utils.data_loader import get_direction_by_id, load_directions
+from utils.image_handler import get_direction_image
 
 router = Router()
 DIRECTIONS = load_directions()
@@ -54,10 +55,24 @@ async def show_direction_detail(callback: CallbackQuery, state: FSMContext):
         text += f"\n\n<b>💰 Доход:</b> {direction['income']}\n"
         text += f"<b>💸 Комиссия:</b> {direction['commission']}"
 
-    await callback.message.edit_text(
-        text,
-        reply_markup=get_direction_detail_keyboard(dir_id)
-    )
+    # Получаем изображение для направления
+    direction_image = get_direction_image(dir_id)
+
+    # Удаляем предыдущее сообщение и отправляем новое с фото
+    await callback.message.delete()
+
+    if direction_image:
+        await callback.message.answer_photo(
+            photo=direction_image,
+            caption=text,
+            reply_markup=get_direction_detail_keyboard(dir_id)
+        )
+    else:
+        await callback.message.answer(
+            text,
+            reply_markup=get_direction_detail_keyboard(dir_id)
+        )
+
     await callback.answer()
 
 

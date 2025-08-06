@@ -4,6 +4,7 @@ from aiogram.types import CallbackQuery
 from constants import COURSE_BENEFITS, TARIFFS_DESCRIPTION
 from keyboards import get_back_to_courses_keyboard, get_tariffs_keyboard
 from utils.data_loader import get_direction_by_id, load_directions
+from utils.image_handler import get_courses_overview_image, get_tariffs_image
 
 router = Router()
 DIRECTIONS = load_directions()
@@ -31,7 +32,22 @@ async def show_courses(callback: CallbackQuery):
     # Добавляем общую информацию один раз в конец
     text += f"ℹ️ {COURSE_BENEFITS}"
 
-    await callback.message.edit_text(text, reply_markup=get_back_to_courses_keyboard(dir_id))
+    # Удаляем предыдущее сообщение и отправляем новое с фото
+    await callback.message.delete()
+
+    courses_image = get_courses_overview_image()
+    if courses_image:
+        await callback.message.answer_photo(
+            photo=courses_image,
+            caption=text,
+            reply_markup=get_back_to_courses_keyboard(dir_id)
+        )
+    else:
+        await callback.message.answer(
+            text,
+            reply_markup=get_back_to_courses_keyboard(dir_id)
+        )
+
     await callback.answer()
 
 
@@ -40,5 +56,20 @@ async def show_tariffs(callback: CallbackQuery):
     """Показать тарифы для покупки."""
     text = f"💳 <b>Тарифы обучения</b>\n\n{TARIFFS_DESCRIPTION}"
 
-    await callback.message.edit_text(text, reply_markup=get_tariffs_keyboard())
+    # Удаляем предыдущее сообщение и отправляем новое с фото
+    await callback.message.delete()
+
+    tariffs_image = get_tariffs_image()
+    if tariffs_image:
+        await callback.message.answer_photo(
+            photo=tariffs_image,
+            caption=text,
+            reply_markup=get_tariffs_keyboard()
+        )
+    else:
+        await callback.message.answer(
+            text,
+            reply_markup=get_tariffs_keyboard()
+        )
+
     await callback.answer()
