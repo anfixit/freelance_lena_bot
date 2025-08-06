@@ -42,6 +42,7 @@ def get_image_path(category: str, image_name: str) -> Path:
 def get_start_image() -> FSInputFile:
     """Получить изображение для стартового экрана."""
     path = get_image_path("main", "start_screen")
+    logger.info(f"Попытка загрузить стартовое изображение: {path}")
     return FSInputFile(path) if path else None
 
 
@@ -55,11 +56,14 @@ def get_direction_image(direction_id: str) -> FSInputFile:
     }
 
     image_name = image_map.get(direction_id)
+    logger.info(f"Ищем изображение для направления {direction_id} -> {image_name}")
+
     if not image_name:
         logger.warning(f"Не найдено соответствие для направления: {direction_id}")
         return None
 
     path = get_image_path("directions", image_name)
+    logger.info(f"Путь к изображению направления: {path}")
     return FSInputFile(path) if path else None
 
 
@@ -89,4 +93,5 @@ def get_courses_overview_image() -> FSInputFile:
 def get_tariffs_image() -> FSInputFile:
     """Получить изображение для тарифов."""
     path = get_image_path("tariffs", "tariffs_payment")
+    logger.info(f"Путь к изображению тарифов: {path}")
     return FSInputFile(path) if path else None
