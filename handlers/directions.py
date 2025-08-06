@@ -202,4 +202,9 @@ async def show_tasks_details(callback: CallbackQuery):
 
     text += "\n<b>Кто вам платит за это?</b>\n\n"
     for payer in direction['who_pays']:
-        text += f"—
+        text += f"— {payer}\n"
+
+    text += f"\n{direction['advantages']}"
+
+    await callback.message.edit_text(text, reply_markup=get_back_to_direction_keyboard("task_execution"))
+    await callback.answer()
