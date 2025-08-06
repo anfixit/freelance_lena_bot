@@ -7,7 +7,7 @@ from constants import BUTTON_BUY_COURSE, BUTTON_GET_DETAILS, CONSULTATION_URL
 from keyboards import get_direction_detail_keyboard, get_directions_keyboard, get_back_to_direction_keyboard
 from states import UserStates
 from utils.data_loader import get_direction_by_id, load_directions
-from utils.image_handler import get_image_path
+from utils.image_handler import get_direction_image
 
 router = Router()
 DIRECTIONS = load_directions()
