@@ -78,7 +78,6 @@ async def show_direction_detail(callback: CallbackQuery, state: FSMContext):
     text = truncate_text(text, 900)
 
     try:
-        # Пытаемся отправить с картинкой
         logger.info(f"Попытка показать направление: {dir_id}")
         photo = get_direction_image(dir_id)
 
@@ -110,6 +109,34 @@ async def show_direction_detail(callback: CallbackQuery, state: FSMContext):
         )
 
     await callback.answer()
+
+
+@router.callback_query(F.data == "directions")
+async def back_to_directions(callback: CallbackQuery, state: FSMContext):
+    """Вернуться к списку направлений."""
+    logger.info("🔄 Получен callback 'directions' - возврат к списку направлений")
+
+    try:
+        await state.set_state(UserStates.choosing_direction)
+
+        # Удаляем текущее сообщение (может быть с картинкой)
+        try:
+            await callback.message.delete()
+        except Exception as e:
+            logger.warning(f"Не удалось удалить сообщение: {e}")
+
+        # Отправляем новое сообщение со списком направлений
+        await callback.message.answer(
+            "💼 <b>Направления для заработка</b>\n\n"
+            "Выбери интересующее направление, чтобы узнать подробности:",
+            reply_markup=get_directions_keyboard(DIRECTIONS)
+        )
+        await callback.answer()
+        logger.info("✅ Успешно вернулись к списку направлений")
+
+    except Exception as e:
+        logger.error(f"❌ Ошибка при возврате к направлениям: {e}")
+        await callback.answer("Произошла ошибка")
 
 
 @router.callback_query(F.data.startswith("designer_"))
@@ -175,21 +202,4 @@ async def show_tasks_details(callback: CallbackQuery):
 
     text += "\n<b>Кто вам платит за это?</b>\n\n"
     for payer in direction['who_pays']:
-        text += f"— {payer}\n"
-
-    text += f"\n{direction['advantages']}"
-
-    await callback.message.edit_text(text, reply_markup=get_back_to_direction_keyboard("task_execution"))
-    await callback.answer()
-
-
-@router.callback_query(F.data == "directions")
-async def back_to_directions(callback: CallbackQuery, state: FSMContext):
-    """Вернуться к списку направлений."""
-    await state.set_state(UserStates.choosing_direction)
-    await callback.message.edit_text(
-        "💼 <b>Направления для заработка</b>\n\n"
-        "Выбери интересующее направление, чтобы узнать подробности:",
-        reply_markup=get_directions_keyboard(DIRECTIONS)
-    )
-    await callback.answer()
+        text += f"—
