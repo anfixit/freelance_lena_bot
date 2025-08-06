@@ -1,80 +1,109 @@
-# .github/workflows/deploy.yml
-name: Deploy Freelance Lena Bot
+name: Deploy Freelance Bot
 
 on:
   push:
-    branches: [main, master]
-  workflow_dispatch: # Позволяет запускать вручную
+    branches: [main]
+  workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
-      - name: 📦 Checkout code
+      - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: 🚀 Deploy to server
-        uses: appleboy/ssh-action@v1.0.3
+      - name: Stop old bot service
+        uses: appleboy/ssh-action@v0.1.10
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_KEY }}
-          port: ${{ secrets.PORT }}
           script: |
-            echo "🧹 Начинаем полную переустановку бота..."
-
-            # Останавливаем старый сервис
+            echo "🛑 Останавливаем старый сервис..."
             sudo systemctl stop freelance-bot || true
             sudo systemctl disable freelance-bot || true
 
-            # Полностью удаляем старую директорию
+      - name: Clean old installation
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            echo "🧹 Удаляем старые файлы..."
             sudo rm -rf /opt/freelance_lena_bot
             sudo rm -f /etc/systemd/system/freelance-bot.service
             sudo systemctl daemon-reload
 
-            # Создаем чистую директорию
+            echo "📁 Создаем чистую директорию..."
             sudo mkdir -p /opt/freelance_lena_bot
+            sudo chown -R root:root /opt/freelance_lena_bot
+
+      - name: Copy ALL files via scp
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          source: "."
+          target: "/opt/freelance_lena_bot"
+          strip_components: 0
+          rm: true
+
+      - name: Setup and start bot
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
             cd /opt/freelance_lena_bot
 
-            # Клонируем свежий код из репозитория
-            sudo git clone https://github.com/${{ github.repository }}.git .
+            echo "📁 Проверяем что скопировалось:"
+            ls -la
 
-            # Создаем .env файл с токеном
-            sudo tee .env > /dev/null <<EOF
+            echo "🖼️ Проверяем папку images:"
+            ls -la images/ || echo "❌ Папка images не найдена!"
+
+            echo "📋 Проверяем data/directions.json:"
+            ls -la data/ || echo "❌ Папка data не найдена!"
+
+            # Создаем .env файл из секретов GitHub
+            echo "🔐 Создаем .env файл..."
+            cat > .env << EOF
             BOT_TOKEN=${{ secrets.BOT_TOKEN }}
-            DEBUG=False
+            DATABASE_URL=${{ secrets.DATABASE_URL || 'sqlite:///bot.db' }}
+            DEBUG=${{ secrets.DEBUG || 'False' }}
+            ADMIN_IDS=${{ secrets.ADMIN_IDS || '' }}
+            WEBHOOK_HOST=${{ secrets.WEBHOOK_HOST || '' }}
+            WEBHOOK_PORT=${{ secrets.WEBHOOK_PORT || '8001' }}
             EOF
 
-            # Создаем виртуальное окружение
-            python3 -m venv venv
+            echo "✅ .env файл создан"
+
+            # Проверяем Python 3.11
+            if ! command -v python3.11 &> /dev/null; then
+              echo "📦 Устанавливаем Python 3.11..."
+              sudo apt update
+              sudo apt install -y software-properties-common
+              sudo add-apt-repository ppa:deadsnakes/ppa -y
+              sudo apt update
+              sudo apt install -y python3.11 python3.11-venv python3.11-dev python3.11-pip
+            fi
+
+            # Создаем/обновляем виртуальное окружение
+            echo "🐍 Создаем виртуальное окружение..."
+            sudo rm -rf venv
+            python3.11 -m venv venv
             source venv/bin/activate
 
             # Устанавливаем зависимости
+            echo "📦 Устанавливаем зависимости..."
             pip install --upgrade pip
             pip install -r requirements.txt
 
-            # Создаем необходимые директории
-            mkdir -p data logs images/main images/directions images/courses
-
-            # Проверяем что все файлы на месте
-            echo "📁 Проверяем структуру:"
-            ls -la
-            echo "📁 Содержимое data/:"
-            ls -la data/
-
-            # Проверяем что directions.json существует
-            if [ ! -f "data/directions.json" ]; then
-              echo "❌ Файл directions.json не найден в data/"
-              # Если файл в корне - копируем его
-              if [ -f "directions.json" ]; then
-                cp directions.json data/
-                echo "✅ Скопировали directions.json в data/"
-              else
-                echo "❌ КРИТИЧЕСКАЯ ОШИБКА: directions.json не найден!"
-                exit 1
-              fi
-            fi
+            # Создаем недостающие директории
+            mkdir -p logs
 
             # Тестируем модули Python
             echo "🧪 Тестируем Python модули..."
@@ -96,26 +125,41 @@ jobs:
                 import traceback
                 traceback.print_exc()
                 exit(1)
-            "
+            " || exit 1
 
             # Устанавливаем права доступа
+            echo "🔐 Устанавливаем права доступа..."
             sudo chown -R root:root /opt/freelance_lena_bot/
             sudo chmod +x bot.py
 
             # Устанавливаем systemd сервис
+            echo "⚙️ Настраиваем systemd сервис..."
             sudo cp freelance-bot.service /etc/systemd/system/
             sudo systemctl daemon-reload
             sudo systemctl enable freelance-bot
 
             # Запускаем бота
+            echo "▶️ Запускаем бота..."
             sudo systemctl start freelance-bot
 
             # Проверяем статус
+            echo "✅ Проверяем статус через 5 секунд..."
             sleep 5
             sudo systemctl status freelance-bot --no-pager
 
             # Показываем последние логи
             echo "📋 Последние логи:"
-            sudo journalctl -u freelance-bot --lines=10 --no-pager
+            sudo journalctl -u freelance-bot --lines=15 --no-pager
 
+            echo ""
             echo "🎉 Деплой завершен!"
+            echo "📱 Попробуйте отправить /start боту"
+
+      - name: Notify deployment status
+        if: always()
+        run: |
+          if [ ${{ job.status }} == 'success' ]; then
+            echo "✅ Деплой успешен!"
+          else
+            echo "❌ Ошибка деплоя!"
+          fi
